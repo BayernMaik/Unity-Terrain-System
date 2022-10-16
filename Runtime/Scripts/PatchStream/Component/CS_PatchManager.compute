@@ -1,0 +1,25 @@
+#pragma kernel CSMain
+
+struct patch
+{
+    float3 position;
+};
+RWStructuredBuffer<patch> patchBuffer;
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+
+int2 patchDimension;
+float3 renderPositionPosition[1];
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+
+    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+        
+    float3 _distance = distance(renderPositionPosition[0], float3(0.0, 0.0, 0.0));
+    
+}
