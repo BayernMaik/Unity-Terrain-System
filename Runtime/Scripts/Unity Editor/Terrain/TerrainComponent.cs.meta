@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6bd279709ab95854796696b9abc847fd
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - computeShader: {fileID: 7200000, guid: 99711c13776538b469aeaedfa3833cfd, type: 3}
+  - _terrainData: {instanceID: 0}
+  - _heightMap: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

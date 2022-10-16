@@ -1,0 +1,111 @@
+﻿// ComputeShader_MarchingCubes
+#pragma kernel CSMain
+
+// Tables
+RWStructuredBuffer<int> triangleTableBuffer;
+RWStructuredBuffer<int2> edgeIndexBuffer;
+RWStructuredBuffer<float3> cornerTableBuffer;
+//
+RWStructuredBuffer<float> terrainDataBuffer;
+struct tri
+{
+    float3 vertexA;
+    float3 vertexB;
+    float3 vertecC;
+};
+AppendStructuredBuffer<tri> verticesDataBuffer;
+RWStructuredBuffer<int> verticesCounterBuffer;
+
+float surfaceThreshold;
+int3 sampleResolution;
+float lodScale;
+
+[numthreads(1, 1, 1)] // Number of Threads per Group
+void CSMain(
+uint3 sv_GroupThreadID : SV_GroupThreadID, // Index of thread within the thread group
+uint3 sv_GroupID : SV_GroupID, // Index within Dispatch
+uint3 sv_DispatchThreadID : SV_DispatchThreadID,
+int sv_GroupIndex : SV_GroupIndex
+)
+{
+    //
+    int x = sv_DispatchThreadID.x;
+    int y = sv_DispatchThreadID.y;
+    int z = sv_DispatchThreadID.z;
+    int DispatchThreadIndex = sv_DispatchThreadID.z + (sv_DispatchThreadID.y * (sampleResolution.z + 1)) + (sv_DispatchThreadID.x * (sampleResolution.y + 1) * (sampleResolution.z + 1));
+    
+    //
+    int sizeX1 = sampleResolution.x + 1;
+    int sizeY1 = sampleResolution.y + 1;
+    int sizeZ1 = sampleResolution.z + 1;
+    
+    int terrainDataIndex[8];
+    
+    terrainDataIndex[0] = DispatchThreadIndex; // cornerTable (0, 0, 0) // 0
+    terrainDataIndex[1] = DispatchThreadIndex + sizeY1 * sizeZ1; // cornerTable (1, 0, 0) // 1
+    terrainDataIndex[2] = DispatchThreadIndex + (sizeY1 * sizeZ1) + sizeZ1; // cornerTable (1, 1, 0) // 2
+    terrainDataIndex[3] = DispatchThreadIndex + sizeZ1; // cornerTable (0, 1, 0) // 3
+    terrainDataIndex[4] = DispatchThreadIndex + 1; // cornerTable (0, 0, 1) // 4
+    terrainDataIndex[5] = DispatchThreadIndex + (sizeY1 * sizeZ1) + 1; // cornerTable (1, 0, 1) // 5
+    terrainDataIndex[6] = DispatchThreadIndex + (sizeY1 * sizeZ1) + sizeZ1 + 1; // cornerTable (1, 1, 1) // 6
+    terrainDataIndex[7] = DispatchThreadIndex + sizeZ1 + 1; // cornerTable (0, 1, 1) // 7
+    
+    int configIndex = 0;
+    for (int c = 0; c < 8; c++)
+    {
+        if (terrainDataBuffer[terrainDataIndex[c]] < surfaceThreshold)
+        {
+            configIndex |= 1 << c;
+        }
+    }
+    
+    tri t;
+    int t0, t1, t2;
+    float3 vert1, vert2;
+    float3 vertexA, vertexB, vertexC;
+    
+    float3 threadPos = sv_DispatchThreadID;
+    
+    int rowIndex = configIndex * 16;
+    
+    for (int i = 0; triangleTableBuffer[rowIndex + i] != -1; i += 3)
+    {
+        // 1. Vertex
+        t0 = triangleTableBuffer[rowIndex + i];
+        vert1 = threadPos + cornerTableBuffer[edgeIndexBuffer[t0][0]];
+        vert2 = threadPos + cornerTableBuffer[edgeIndexBuffer[t0][1]];
+        
+        float vert1Sample = terrainDataBuffer[terrainDataIndex[edgeIndexBuffer[t0][0]]];
+        float vert2Sample = terrainDataBuffer[terrainDataIndex[edgeIndexBuffer[t0][1]]];
+        float diff = vert2Sample - vert1Sample;
+        diff = (surfaceThreshold - vert1Sample) / diff;
+        vertexA = vert1 + (vert2 - vert1) * diff;
+        
+        // 2. Vertex
+        t1 = triangleTableBuffer[rowIndex + i + 1];
+        vert1 = threadPos + cornerTableBuffer[edgeIndexBuffer[t1][0]];
+        vert2 = threadPos + cornerTableBuffer[edgeIndexBuffer[t1][1]];
+        
+        vert1Sample = terrainDataBuffer[terrainDataIndex[edgeIndexBuffer[t1][0]]];
+        vert2Sample = terrainDataBuffer[terrainDataIndex[edgeIndexBuffer[t1][1]]];
+        diff = vert2Sample - vert1Sample;
+        diff = (surfaceThreshold - vert1Sample) / diff;
+        vertexB = vert1 + (vert2 - vert1) * diff;
+        
+        // 3. Vertex
+        t2 = triangleTableBuffer[rowIndex + i + 2];
+        vert1 = threadPos + cornerTableBuffer[edgeIndexBuffer[t2][0]];
+        vert2 = threadPos + cornerTableBuffer[edgeIndexBuffer[t2][1]];
+        
+        vert1Sample = terrainDataBuffer[terrainDataIndex[edgeIndexBuffer[t2][0]]];
+        vert2Sample = terrainDataBuffer[terrainDataIndex[edgeIndexBuffer[t2][1]]];
+        diff = vert2Sample - vert1Sample;
+        diff = (surfaceThreshold - vert1Sample) / diff;
+        vertexC = vert1 + (vert2 - vert1) * diff;
+        
+        t.vertexA = vertexA * lodScale;
+        t.vertexB = vertexB * lodScale;
+        t.vertecC = vertexC * lodScale;
+        verticesDataBuffer.Append(t);
+    }
+}
